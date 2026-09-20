@@ -242,10 +242,6 @@ bool RefineFundamentalMatrixSampson(const std::vector<Eigen::Vector2d>& points1,
   options.max_num_iterations = 25;
   solver.Solve(functor, &params, options);
 
-  if (!params.allFinite()) {
-    return false;
-  }
-
   *F = normed_from_orig2.transpose() *
        TinyFundamentalSampsonErrorCostFunctor::FundamentalFromParams(
            params.data()) *

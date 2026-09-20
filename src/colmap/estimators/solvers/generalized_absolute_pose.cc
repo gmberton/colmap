@@ -113,10 +113,9 @@ class TinyRigCostFunctor {
 };
 
 // Nonlinear refinement of a rig pose (rigid or scaled, selected by kScaled
-// with a matching Sim3d/Rigid3d model) with TinySolver. Returns false and
-// leaves *rig_from_world unchanged if the solve produces a non-finite result.
+// with a matching Sim3d/Rigid3d model) with TinySolver.
 template <bool kScaled, typename Model>
-bool RefineRigPoseWithTinySolver(
+void RefineRigPoseWithTinySolver(
     const std::vector<GP3PEstimator::X_t>& points2D,
     const std::vector<Eigen::Vector3d>& points3D,
     GP3PEstimator::ResidualType residual_type,
@@ -142,10 +141,6 @@ bool RefineRigPoseWithTinySolver(
   }
   solver.Solve(f, &x, options);
 
-  if (!x.allFinite()) {
-    return false;
-  }
-
   if constexpr (kScaled) {
     *rig_from_world = Sim3d(std::exp(x[7]),
                             Eigen::Quaterniond(x.data()).normalized(),
@@ -154,7 +149,6 @@ bool RefineRigPoseWithTinySolver(
     *rig_from_world = Rigid3d(Eigen::Quaterniond(x.data()).normalized(),
                               x.template segment<3>(4));
   }
-  return true;
 }
 
 void ComputeOriginsInRig(const std::vector<GP3PEstimator::X_t>& points2D,
@@ -271,8 +265,9 @@ bool GP3PEstimator::Refine(const std::vector<X_t>& points2D,
     return false;
   }
 
-  return RefineRigPoseWithTinySolver</*kScaled=*/false>(
+  RefineRigPoseWithTinySolver</*kScaled=*/false>(
       points2D, points3D, residual_type_, rig_from_world);
+  return true;
 }
 
 void GP3PEstimator::Residuals(const std::vector<X_t>& points2D,
@@ -345,7 +340,8 @@ bool GP4PSEstimator::Refine(const std::vector<X_t>& points2D,
   // parameterization below is undefined. Unlike the public refinement in
   // generalized_pose.h, which throws on such an input, this is a soft failure
   // that only skips the local optimization.
-  if (!(rig_from_world->scale() > 0)) {
+  if (rig_from_world->scale() <= 0.0 ||
+      !std::isfinite(rig_from_world->scale())) {
     return false;
   }
 
@@ -361,8 +357,9 @@ bool GP4PSEstimator::Refine(const std::vector<X_t>& points2D,
     return false;
   }
 
-  return RefineRigPoseWithTinySolver</*kScaled=*/true>(
+  RefineRigPoseWithTinySolver</*kScaled=*/true>(
       points2D, points3D, residual_type_, rig_from_world);
+  return true;
 }
 
 void GP4PSEstimator::Residuals(const std::vector<X_t>& points2D,
